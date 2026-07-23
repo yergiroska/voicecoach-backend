@@ -1,0 +1,9 @@
+# VoiceCoach AI - backend
+# Dependencias directas (las transitivas las resuelve pip).
+# Las librerías de IA (Groq) y DB (PostgreSQL/pgvector, Firebase) se
+# añadiran en fases posteriores.
+
+fastapi==0.139.2
+uvicorn[standard]==0.51.0
+pydantic-settings==2.14.2
+python-dotenv==1.2.2

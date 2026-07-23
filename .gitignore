@@ -1,0 +1,40 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# ---- Entornos virtuales ----
+venv/
+.venv/
+env/
+ENV/
+
+# ---- Variables de entorno / secretos ----
+.env
+.env.*
+!.env.example
+
+# ---- Testing / coverage ----
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# ---- Sistema operativo ----
+.DS_Store
+Thumbs.db
+
+# ---- IDE / editores ----
+.idea/
+.vscode/
+
+# ---- IA / agentes (no se versionan) ----
+CLAUDE.md
+AGENTS.md
+docs/
+.claude/
