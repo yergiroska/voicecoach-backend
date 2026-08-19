@@ -1,9 +1,15 @@
 # VoiceCoach AI - backend
 # Dependencias directas (las transitivas las resuelve pip).
-# Las librerías de IA (Groq) y DB (PostgreSQL/pgvector, Firebase) se
+# Las librerías de IA (Groq) y DB (PostgreSQL/pgvector) se
 # añadiran en fases posteriores.
 
 fastapi==0.139.2
 uvicorn[standard]==0.51.0
 pydantic-settings==2.14.2
 python-dotenv==1.2.2
+
+# Auth: verificación de ID tokens de Firebase contra las claves públicas de
+# Google. Se usa google-auth (solo necesita el Project ID, público) en lugar
+# del SDK Admin de Firebase, que exigiría una clave privada de servicio.
+# El extra [requests] aporta el transporte HTTP google.auth.transport.requests.
+google-auth[requests]==2.56.3
