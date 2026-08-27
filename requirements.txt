@@ -13,3 +13,7 @@ python-dotenv==1.2.2
 # del SDK Admin de Firebase, que exigiría una clave privada de servicio.
 # El extra [requests] aporta el transporte HTTP google.auth.transport.requests.
 google-auth[requests]==2.56.3
+
+# Parseo de multipart/form-data: lo exige FastAPI para recibir archivos
+# subidos (UploadFile) en POST /recordings.
+python-multipart==0.0.32

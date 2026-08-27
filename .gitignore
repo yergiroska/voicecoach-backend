@@ -25,6 +25,14 @@ htmlcov/
 .mypy_cache/
 .ruff_cache/
 
+# ---- Almacenamiento local de audio ----
+# Las grabaciones subidas al endpoint POST /recordings son datos de runtime
+# (y voz de usuarios): nunca se versionan. Se mantiene el .gitkeep para que
+# la carpeta exista al clonar el repo.
+/storage/**
+!/storage/**/
+!/storage/**/.gitkeep
+
 # ---- Sistema operativo ----
 .DS_Store
 Thumbs.db
