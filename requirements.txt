@@ -1,7 +1,6 @@
 # VoiceCoach AI - backend
 # Dependencias directas (las transitivas las resuelve pip).
-# Las librerías de IA (Groq) y DB (PostgreSQL/pgvector) se
-# añadiran en fases posteriores.
+# Las librerías de DB (PostgreSQL/pgvector) se añadirán en fases posteriores.
 
 fastapi==0.139.2
 uvicorn[standard]==0.51.0
@@ -17,3 +16,9 @@ google-auth[requests]==2.56.3
 # Parseo de multipart/form-data: lo exige FastAPI para recibir archivos
 # subidos (UploadFile) en POST /recordings.
 python-multipart==0.0.32
+
+# IA: transcripción de audio con Groq Whisper (modelo whisper-large-v3).
+# Se usa el cliente asíncrono AsyncGroq porque el endpoint de subida es async.
+# Arrastra httpx como transitiva, que además es lo que necesita
+# fastapi.testclient.TestClient cuando se añadan tests.
+groq==1.7.0
