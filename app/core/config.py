@@ -73,6 +73,52 @@ class Settings(BaseSettings):
     # cercano al límite de 25 MB.
     groq_timeout_seconds: float = 120.0
 
+    # ---- Groq (análisis de comunicación con un LLM) ----
+    # Modelo que valora claridad, confianza y ritmo. Usa la misma GROQ_API_KEY.
+    #
+    # `openai/gpt-oss-120b` elegido con datos, no por defecto (ver la
+    # comparativa en el docstring de app/services/analysis_service.py):
+    #   - es uno de los tres modelos de la cuenta que admiten salida
+    #     estructurada ESTRICTA, que es lo que garantiza un JSON con la forma
+    #     de `AnalysisLlmOutput`;
+    #   - `qwen/qwen3.8-27b` quedó descartado porque puntuaba sobre 10 en vez de
+    #     sobre 100 pese al esquema, y cuesta 5 veces más;
+    #   - `openai/gpt-oss-20b` es la mitad de precio pero repite una sugerencia
+    #     incoherente ("revisa la transcripción antes de grabar": no entiende
+    #     que la transcripción es POSTERIOR a la grabación), y las sugerencias
+    #     son justo el valor que ve el usuario.
+    #
+    # Configurable para poder comparar modelos sin tocar código, igual que
+    # `groq_whisper_model`.
+    groq_analysis_model: str = "openai/gpt-oss-120b"
+
+    # Corte de la llamada de análisis, separado del de transcripción y mucho más
+    # corto a propósito: medido, el análisis tarda 1-2 s. Cuando se ejecuta, el
+    # audio YA está transcrito, así que heredar los 120 s de Whisper significaría
+    # tener al móvil esperando dos minutos por un extra que además es opcional
+    # (si falla, la respuesta sale con `analysis: null`).
+    groq_analysis_timeout_seconds: float = 30.0
+
+    # ---- Persistencia: PostgreSQL ----
+    # SEGUNDO secreto del proyecto (lleva la contraseña de la DB dentro de la
+    # URL), de ahí `SecretStr`: sin él la cadena entera —contraseña incluida—
+    # aparecería en cualquier log que volcase la config o en un `repr(settings)`.
+    #
+    # Opcional por el mismo motivo que `groq_api_key`: hacerla obligatoria
+    # lanzaría ValidationError al importar este módulo y tumbaría /health y /me,
+    # que no necesitan base de datos. Sin ella la app arranca con un WARNING y
+    # POST /recordings sigue transcribiendo: simplemente no persiste la fila
+    # (ver la decisión de "insert best-effort" en app/routers/recordings.py).
+    #
+    # No se le pone un default con credenciales locales a propósito: un
+    # usuario/contraseña inventados en el código son una trampa (parece que
+    # funciona hasta que no funciona). Se declara en `.env` (ver .env.example).
+    database_url: SecretStr | None = None
+
+    # Volcar al log cada sentencia SQL que ejecuta SQLAlchemy. Útil al depurar
+    # migraciones o consultas; muy ruidoso, así que por defecto apagado.
+    database_echo: bool = False
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -97,6 +143,56 @@ class Settings(BaseSettings):
         if self.groq_api_key is None:
             return False
         return bool(self.groq_api_key.get_secret_value().strip())
+
+    @property
+    def database_configured(self) -> bool:
+        """Si hay una URL de base de datos usable.
+
+        Mismo criterio que `groq_configured`: una variable presente pero vacía
+        (`DATABASE_URL=` copiado de `.env.example` sin rellenar) cuenta como no
+        configurada, no como URL inválida.
+        """
+        if self.database_url is None:
+            return False
+        return bool(self.database_url.get_secret_value().strip())
+
+    @property
+    def database_dsn(self) -> str:
+        """La URL de la DB como string plano, con el driver async garantizado.
+
+        SQLAlchemy necesita el string sin envolver, así que aquí se saca del
+        `SecretStr`. Este es el único sitio que lo desenvuelve: el resto del
+        código pide `settings.database_dsn`, nunca `settings.database_url`.
+
+        Además normaliza el esquema. `create_async_engine` exige un driver
+        asíncrono explícito (`postgresql+asyncpg://`), pero las URLs que dan los
+        proveedores vienen como `postgresql://` (Supabase) o `postgres://`
+        (estilo Heroku, que SQLAlchemy directamente no acepta). Se reescriben
+        aquí para poder pegar la cadena del proveedor en `.env` tal cual, sin
+        acordarse de este detalle. Una URL que ya trae driver (`+asyncpg`, o
+        `+psycopg` para un script puntual) se respeta sin tocar.
+
+        Raises:
+            ValueError: no hay URL configurada, o no tiene forma de URL.
+        """
+        if not self.database_configured:
+            raise ValueError(
+                "DATABASE_URL no configurada: no hay base de datos a la que conectarse."
+            )
+
+        # `database_configured` ya garantiza que no es None ni está vacía.
+        raw = self.database_url.get_secret_value().strip()  # type: ignore[union-attr]
+
+        scheme, separator, rest = raw.partition("://")
+        if not separator:
+            raise ValueError(
+                "DATABASE_URL no parece una URL: falta el '://' tras el esquema."
+            )
+
+        if scheme in ("postgres", "postgresql"):
+            return f"postgresql+asyncpg://{rest}"
+
+        return raw
 
 
 settings = Settings()

@@ -22,3 +22,19 @@ python-multipart==0.0.32
 # Arrastra httpx como transitiva, que además es lo que necesita
 # fastapi.testclient.TestClient cuando se añadan tests.
 groq==1.7.0
+
+# ---- Persistencia: PostgreSQL (+ pgvector en la Fase 7) ----
+#
+# El extra [asyncio] arrastra greenlet, que es lo que permite a SQLAlchemy
+# ejecutar su capa síncrona dentro de un event loop. Sin él, `create_async_engine`
+# falla en el import.
+sqlalchemy[asyncio]==2.0.52
+
+# Driver asíncrono de PostgreSQL. Se elige asyncpg (y no psycopg) para que el
+# acceso a la DB no bloquee el event loop, en coherencia con AsyncGroq y con el
+# endpoint async de POST /recordings.
+asyncpg==0.31.0
+
+# Migraciones de schema. Se usa desde el minuto uno (no `create_all`) porque el
+# schema tiene que poder replicarse en Supabase en la Fase 9 sin divergencias.
+alembic==1.19.2
