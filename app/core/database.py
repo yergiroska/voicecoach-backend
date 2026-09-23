@@ -26,6 +26,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Annotated
 
+from asyncpg.exceptions import PostgresConnectionError
 from fastapi import Depends, HTTPException, status
 from sqlalchemy.exc import InterfaceError, OperationalError
 from sqlalchemy.ext.asyncio import (
@@ -47,6 +48,35 @@ class DatabaseUnavailableError(Exception):
     `TranscriptionUnavailableError` en la capa de Groq: el router decide si eso
     se traduce a un 503 o si se traga (best-effort).
     """
+
+
+# Las excepciones que significan "no hay conexión con la base de datos", para
+# quien necesite distinguir indisponibilidad (503) de un bug nuestro (500).
+# Vive aquí porque este es el módulo que conoce el driver: el resto de capas
+# importan la tupla en vez de saber qué lanza asyncpg.
+#
+# Dos de ellas NO las envuelve SQLAlchemy, y se descubrieron probando contra
+# PostgreSQL local, no leyendo documentación:
+#
+# - `OSError`: puerto cerrado (`ConnectionRefusedError`) o host que no resuelve
+#   (`socket.gaierror`). No llegó a haber conexión DBAPI que envolver.
+#   `session_scope` ya la traduce a `DatabaseUnavailableError`, pero se incluye
+#   por si salta fuera de él.
+# - `PostgresConnectionError` de asyncpg: con contraseña incorrecta y con una
+#   base inexistente llega un `ConnectionDoesNotExistError`, que hereda de
+#   `Exception` y de nada de SQLAlchemy. Sin esta entrada, `get_session` daba
+#   500 en esos dos casos (reproducido con un endpoint de prueba).
+#
+# Ojo: la conexión es PEREZOSA. Se abre en el primer `execute`, no al crear la
+# sesión, así que estos errores saltan dentro del cuerpo del endpoint, no al
+# resolver la dependency.
+CONNECTIVITY_ERRORS: tuple[type[BaseException], ...] = (
+    DatabaseUnavailableError,
+    OSError,
+    PostgresConnectionError,
+    OperationalError,
+    InterfaceError,
+)
 
 
 # Engine y factoría de sesiones a nivel de módulo: el pool de conexiones debe
@@ -194,9 +224,9 @@ async def session_scope() -> AsyncIterator[AsyncSession]:
 async def get_session() -> AsyncIterator[AsyncSession]:
     """Dependency de FastAPI para endpoints que requieren base de datos.
 
-    Todavía no la usa ningún endpoint: `POST /recordings` persiste en modo
-    best-effort con `session_scope()` (ver el docstring del módulo). Queda aquí
-    porque es la pieza que necesitarán los endpoints de lectura del histórico.
+    La usa `GET /me/baseline`, el primer endpoint de lectura. NO la usa
+    `POST /recordings`, que persiste en modo best-effort con `session_scope()`
+    (ver el docstring del módulo).
 
     Raises:
         HTTPException 503: no hay base de datos configurada o no se pudo conectar.
@@ -206,7 +236,7 @@ async def get_session() -> AsyncIterator[AsyncSession]:
     try:
         async with session_scope() as session:
             yield session
-    except (DatabaseUnavailableError, OperationalError, InterfaceError) as exc:
+    except CONNECTIVITY_ERRORS as exc:
         # Solo la indisponibilidad y los fallos de CONECTIVIDAD se traducen a
         # 503. Un IntegrityError o un error de SQL es un bug nuestro y debe
         # salir como 500, no disfrazarse de indisponibilidad temporal.

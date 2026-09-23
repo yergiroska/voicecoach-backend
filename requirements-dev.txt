@@ -1,0 +1,11 @@
+# VoiceCoach AI - backend: dependencias de DESARROLLO.
+# Aparte de requirements.txt para que el deploy (Render) no instale
+# herramientas que solo se usan en local.
+#
+#   pip install -r requirements-dev.txt
+
+-r requirements.txt
+
+# Tests. De momento solo cubren funciones puras (síncronas), así que no hace
+# falta pytest-asyncio: se añadirá con el primer test que necesite await.
+pytest==9.1.1
